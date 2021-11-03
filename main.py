@@ -9,10 +9,8 @@ from flask import Flask,request,jsonify
 import math, random
 from twilio.rest import Client
 from flask_cors import CORS
-
 from bson.timestamp import Timestamp
 import datetime as dt
-
 
 
 app = Flask(__name__)
@@ -190,21 +188,6 @@ def getorder(userid):
         orders.append({'bill_id':x['bill_id']})
     print(orders) 
     return {"meesage":"getorder success","order":orders}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 if __name__ == '__main__':
