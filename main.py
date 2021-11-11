@@ -24,6 +24,10 @@ colpro=db["product"]
 #print(client.list_database_names())
 
 
+
+
+
+
 @app.route('/')
 def home():
     return "Hello World restAPI"
@@ -105,10 +109,10 @@ def Login():
 def getuser():
     userid="617d08cc2d16ea471c1dc5b7"
     result=db.Users.find_one({"_id":ObjectId(userid)})
-    return  {    "status":True,
-                "userinfo":[{"userid": str(result['_id']),
-                "name":result['name'],"lastname":result['lastname']}]
-                
+    return  {   "status":True,
+                "userinfo":[{
+                "userid": str(result['_id']),
+                "name":result['name'],"lastname":result['lastname']}]              
                 }
 
 
@@ -117,7 +121,7 @@ def getuser():
 def Getproduct(store_ID):   
     product=[]
     for x in colpro.find({'store_ID':store_ID}):
-        product.append({"product_id":str(x["_id"]),
+          product.append({"product_id":str(x["_id"]),
                         "product_name":x["proname"],
                         "product_price":x["price"],
                         "product_img":x["pro_img"],
@@ -134,13 +138,18 @@ def Addproduct():
             print(request.json["proname"])
             return {"messags":"product name is Alerdy"}
         else:
-            db.product.insert_one({'proname':request.json["proname"],'price':request.json["price"]})
+            db.product.insert_one({'proname':request.json["proname"],
+                                   'price':request.json["price"],
+                                   'pro_img':request.json["pro_img"],
+                                   'stock_quantity':request.json["stock_quantity"],
+                                   'store_ID':request.json["store_ID"]
+                                   })
             return {"messags":"Add product success"}
 
 
 
 #update data product from store 
-@app.route('/putProduct',methods=['PUT'])
+@app.route('/UpdateProduct',methods=['PUT'])
 def Updateproduct():
     productID=request.args.get('product_id')
     proname=request.json["proname"]
@@ -156,20 +165,24 @@ def Updateproduct():
             }      
     })
     if(result):
-        return {"messages":"update prodct success productID is"+productID,"status":True}
+        return {"messages":"update prodct success productID is "+productID,"status":True}
 
 
 
 #post ordrs from user 
-@app.route('/post_order/<string:userid>',methods=['POST'])
-def postOrder(userid):
+@app.route('/post_order',methods=['POST'])
+def postOrder():
 
     orderlist={
-    "userid":userid,
-    "bill_id":"GV001",
-    "store_ID":"gv034584",
+    "userid":request.json["userid"],
+    "bill_id":"GV566",
+    "store_ID":request.json["store_ID"],
     "date":Timestamp(int(dt.datetime.today().timestamp()), 1),
-    "orderstatus":False,
+    "status_order":[
+        {"time":"00:00","status":"จัดส่งสำเร็จ","check":False},
+        {"time":"00:00","status":"สินค้ากำลังจัดส่ง","check":False},
+        {"time":"00:00","status":"ผู้ขายกำลังเตรียมสินค้า","check":False},
+        {"time":"00:00","status":"ยืนยันคำสั่งซื้อ","check":False}],
     "order_products":request.json["order_products"],
     "Pickup_time":request.json["Pickup_time"],
     "note":request.json["note"]
@@ -177,17 +190,124 @@ def postOrder(userid):
 
     result=db.orders.insert_one(orderlist)
     if(result):
-        return {"message":"post order your success id"+userid}
+        return {"message":"post order your success"}
 
-#get orders from user 
+def getstorename(storeid):
+    result=db.store.find_one({'store_ID':storeid})
+    return result
+
+
+#get orders for web from user 
 @app.route('/getorder/<string:userid>',methods=['GET'])
 def getorder(userid):
     orders=[]
     result_orders=db.orders.find({'userid':userid})
+    storeid={}
+    storename=''
     for x in result_orders:
-        orders.append({'bill_id':x['bill_id']})
-    print(orders) 
+        storeid=x['store_ID']
+        storename=getstorename(storeid)
+        orders.append({
+        'bill_id':x['bill_id'],
+        'storename': str(storename['storename']),
+         })
+    #print(orders)
+    #print(storeid) 
     return {"meesage":"getorder success","order":orders}
+
+
+
+#getDetails for web 
+@app.route('/getorderDetail/<string:bill_id>',methods=['GET'])
+def getorderDetail(bill_id):
+    orders=[]
+    result_order=db.orders.find({'bill_id':bill_id})
+    for x in result_order:
+        orders.append({'orderList':x['order_products'],"status_order":x['status_order']})
+    #print(orders) 
+    return {"meesage":"getorder detail success","orders":orders}
+
+
+
+#get order tracking
+@app.route('/getordertracking',methods=['GET'])
+def getorderTcaking():
+    result=db.orders.find({"status_order.status":"จัดส่งสำเร็จ","status_order.check":True})
+    print(list(result))
+    return {"meesage":"getorder tracking success"}
+
+
+
+#post store 
+@app.route('/poststore',methods=['POST'])
+def postStore():
+    storeID=request.json["store_ID"]
+    storename=request.json["storename"]
+    coordinates=request.json["coordinates"]
+    userid=request.json["userid"]
+    lat=request.json["lat"]
+    longs=request.json["long"]
+    result=db.store.insert_one({
+         "store_ID":storeID,
+         "storename":storename,
+         "coordinates":coordinates,
+         "userid":userid,
+         "lat":lat,
+         "long":longs})
+    if(result):
+        return {"message":"add store ","status":True}
+
+#get store 
+@app.route('/getstore',methods=['GET'])
+def getstore():
+    userid=request.json["userid"]
+    result=db.store.find_one({'userid':userid})
+    #print(result)
+    return {
+            'message':'getstore ok',
+            "mystore":[{
+            "store_ID": str(result["store_ID"]),
+            "storename":result["storename"],
+            "coordinates":result["coordinates"],
+            "userid":result["userid"],
+            "lat":result["lat"],
+            "long":result["long"]}
+            ]}
+
+
+
+#create_link_store
+@app.route('/createlink',methods=['POST'])
+def createLink():
+    produt_ID=request.json["produt_ID"]
+    store_ID=request.json["store_ID"]
+    Date=request.json["Date"]
+    Delivery_time=request.json["Delivery_time"]
+    Url_path=request.json["Url_path"]
+    link_expired=request.json["link_expired"]
+    result=db.LinkStore.insert_one(
+    {   "productid":produt_ID,
+        "store_ID":store_ID,
+        "Date":Date,
+        "Delivery_time":Delivery_time,
+        "Url_path":Url_path,
+        "link_expired":link_expired
+    })
+    if(result):
+        return {"message":"add store ","status":True}
+
+
+
+#put status order 
+@app.route('/updateStatusOrder',methods=['PUT'])
+def updateStatusOrder():
+    billid=request.json["bill_id"]
+
+    return {"message":"update status success"}
+
+
+
+
 
 
 if __name__ == '__main__':
